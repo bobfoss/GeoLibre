@@ -1,0 +1,15 @@
+{
+  "jwks": {
+    "keys": [
+      {
+        "kty": "RSA",
+        "n": "mQXzeU2iF_zZlCG2T-jcHdwFT4H22XIdL4HIOg8zn0AFpib3QCJcWbEK63TVQdyAptbj6R6YbV3KPx9fXOeQEsiTfaQVHL3mORZv3jmgltwjat0ScJ9IlvWfrxYpUgLtc4yiSKYPP46oSWTrjd-0Upg-LI0AOc8SAMmy7xa0mzs46aijjCOdNbee7NwGuO6KHOcPcKNS9_m-BapWAurIVmzA8s_t7rlxjZcC2DddnNQ_RDZqXULXIiXyRZPoMvBcLf7K3IHHCH0WFlVAo2VLc5EbGE-mfotn9v_7yVdnevJ2ZRFUroRztv0OKHfJDw5yvDPLVMYIcSVrK4XlqJxTPw",
+        "e": "AQAB",
+        "kid": "geolibre-test-only",
+        "use": "sig",
+        "alg": "RS256"
+      }
+    ]
+  },
+  "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Imdlb2xpYnJlLXRlc3Qtb25seSJ9.eyJpc3MiOiJodHRwczovL2F1dGgub3BlbmFpLmNvbSIsImF1ZCI6InRlc3QtY2xpZW50Iiwic3ViIjoidGVzdC11c2VyIiwibm9uY2UiOiJ0ZXN0LW5vbmNlIiwiZXhwIjo0MTAyNDQ0ODAwfQ.H0JFKeYCTx25NaYANazsjGH9NV3lCbNXbzKzyZgmxovHOZTzeDO7hCxIG-uwhoOBZw9m__WbTFIL9axRJOfmqeO5x-1dskSr98yqqt95s_IOd_6mCZSJWINz4CbezbwBi0wSzlOYsp-IuBK0DhvPqEVXJ-CQhr080788b143VREGDKliH2eQ--_s4FcFlo3vIdh0RDxFyBI3IYA_MtwXAG0BEO5ldCyBq1vD771TvmD_WSgoXVDpCNh0qUrGx9SgA0NuFir_bliNWgKs-zyGj6PFl1bAqC6HRF8Txle7NtH3sH4y-j-8b3NLyb-bzvTVJKW2gMawgR6CEY_-AVupmg"
+}

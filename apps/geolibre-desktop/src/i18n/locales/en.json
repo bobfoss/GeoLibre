@@ -3266,6 +3266,19 @@
       }
     },
     "ai": {
+      "chatgpt": {
+        "chooseModel": "Choose a ChatGPT model",
+        "windowsOnly": "ChatGPT subscription requires the Windows desktop app.",
+        "connected": "Connected to ChatGPT",
+        "disconnected": "Connect your ChatGPT subscription",
+        "usage": "Uses your existing ChatGPT plan limits. Sign-in and sign-out take effect immediately. No API key is needed.",
+        "continue": "Continue with ChatGPT",
+        "different": "Use a different account",
+        "signOut": "Sign out",
+        "manage": "Manage ChatGPT usage",
+        "waiting": "Complete sign-in in your browser…",
+        "permission": "Connect again and allow GeoLibre to use your ChatGPT plan."
+      },
       "title": "AI assistant providers",
       "description": "Configure credentials for the AI assistant. Choose a provider, fill in the fields it needs, then Save. Only one configured provider is required to start chatting.",
       "providerLabel": "Provider",

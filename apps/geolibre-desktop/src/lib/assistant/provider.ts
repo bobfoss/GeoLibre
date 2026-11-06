@@ -1,5 +1,6 @@
 import type { Model } from "@strands-agents/sdk";
 import { getDeploymentPolicy, readDeploymentEnv } from "../deployment-env";
+import { chatGptReady } from "./chatgpt-connection";
 
 /**
  * Supported LLM providers for the natural-language assistant. The boundary is
@@ -12,6 +13,7 @@ export type AssistantProviderId =
   | "google"
   | "anthropic"
   | "openai"
+  | "chatgpt"
   | "openrouter"
   | "vercel"
   | "ollama"
@@ -28,6 +30,7 @@ export const ASSISTANT_PROVIDER_IDS: readonly AssistantProviderId[] = [
   "ollama",
   "bedrock",
   "custom",
+  "chatgpt",
 ];
 
 /** AWS credentials for the Bedrock provider. */
@@ -242,6 +245,7 @@ export function mergeRuntimeEnv({
  * preset — supply the model with `OPENAI_COMPATIBLE_MODEL`.
  */
 export const PROVIDER_MODELS: Record<AssistantProviderId, readonly string[]> = {
+  chatgpt: [],
   google: [
     "gemini-3.6-flash",
     "gemini-3.5-flash",
@@ -266,6 +270,7 @@ export const PROVIDER_MODELS: Record<AssistantProviderId, readonly string[]> = {
 
 /** Default model per provider (empty for `custom`, which requires its own). */
 const DEFAULT_MODEL: Record<AssistantProviderId, string> = {
+  chatgpt: "",
   google: PROVIDER_MODELS.google[0],
   anthropic: PROVIDER_MODELS.anthropic[0],
   openai: PROVIDER_MODELS.openai[0],
@@ -278,6 +283,7 @@ const DEFAULT_MODEL: Record<AssistantProviderId, string> = {
 
 /** Human-readable provider labels for the UI. */
 export const PROVIDER_LABELS: Record<AssistantProviderId, string> = {
+  chatgpt: "ChatGPT subscription",
   google: "Google Gemini",
   anthropic: "Anthropic",
   openai: "OpenAI",
@@ -494,6 +500,8 @@ export function configForProvider(
   const modelId = resolveModelId(provider, model, env);
 
   switch (provider) {
+    case "chatgpt":
+      return chatGptReady() ? { provider, modelId: model?.trim() ?? "" } : null;
     case "google":
     case "anthropic":
     case "openai": {
@@ -568,7 +576,7 @@ export function resolveProviderConfig(
   const order =
     requested && ASSISTANT_PROVIDER_IDS.includes(requested as AssistantProviderId)
       ? [requested as AssistantProviderId]
-      : ASSISTANT_PROVIDER_IDS;
+      : ASSISTANT_PROVIDER_IDS.filter((provider) => provider !== "chatgpt");
 
   for (const provider of order) {
     const config = configForProvider(provider, undefined, env);
@@ -666,6 +674,10 @@ export function openAiCompatibleHeaders(
  */
 export async function createModel(config: AssistantProviderConfig): Promise<Model> {
   switch (config.provider) {
+    case "chatgpt": {
+      const { ChatGptModel } = await import("./chatgpt-model");
+      return new ChatGptModel({ modelId: config.modelId });
+    }
     case "google": {
       const { GoogleModel } = await import("@strands-agents/sdk/models/google");
       return new GoogleModel({

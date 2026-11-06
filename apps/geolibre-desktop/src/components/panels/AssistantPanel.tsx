@@ -6,6 +6,7 @@ import {
   Eraser,
   Loader2,
   Mic,
+  Paperclip,
   Send,
   Settings,
   ShieldAlert,
@@ -28,6 +29,8 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { AssistantSession } from "../../lib/assistant/agent";
+import { IMAGE_ACCEPT, MAX_IMAGES, type AssistantImage } from "../../lib/assistant/images";
+import { useAssistantImages } from "../../hooks/useAssistantImages";
 import { renderAssistantMarkdown } from "../../lib/assistant/markdown";
 import { isOllamaNetworkFailure, withOllamaOriginHint } from "../../lib/assistant/ollama";
 import { configForProfile, selectActiveAssistantProfile } from "../../lib/assistant/profiles";
@@ -37,6 +40,12 @@ import { openExternalLink } from "../../lib/open-external";
 import { openSettingsSection } from "../layout/SettingsDialog";
 import { bedrockAuthFromConfig, hasModelPicker } from "../../lib/assistant/model-discovery";
 import { ProviderModelPicker } from "../ProviderModelPicker";
+import { ChatGptModelPicker } from "../ChatGptSettings";
+import {
+  initializeChatGptConnection,
+  supportsChatGpt,
+  useChatGptConnection,
+} from "../../lib/assistant/chatgpt-connection";
 import {
   ASSISTANT_PROVIDER_IDS,
   availableProviders,
@@ -116,6 +125,7 @@ interface Turn {
   id: number;
   role: "user" | "assistant" | "tool" | "error";
   text: string;
+  images?: readonly AssistantImage[];
   /** Tool name for `role === "tool"`. */
   tool?: string;
   /** Whether the fast path routed this call instead of the model. */
@@ -174,6 +184,7 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   // Session-local prompt history. `null` means the user is editing a fresh
   // draft; otherwise it is the recalled entry's index.
   const promptHistoryRef = useRef<string[]>([]);
@@ -201,7 +212,11 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
-  const [hasKey, setHasKey] = useState(() => hasProviderKey());
+  const [keyConfigured, setHasKey] = useState(() => hasProviderKey());
+  const chatGpt = useChatGptConnection();
+  useEffect(() => {
+    void initializeChatGptConnection();
+  }, []);
   const [providers, setProviders] = useState<AssistantProviderId[]>(() => availableProviders());
 
   // Read profiles + default from DesktopSettings (localStorage).
@@ -241,6 +256,13 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
       deploymentProxyConfigured,
     });
   }, [selectedProfileId, aiProfiles, defaultAiProfileId, deploymentProxyConfigured]);
+  const usesChatGpt = activeProfile?.provider === "chatgpt";
+  const attachments = useAssistantImages(
+    `${activeProfile?.id}:${activeProfile?.provider}:${activeProfile?.modelId}:${chatGpt.revision}:${chatGpt.connected}`,
+  );
+  const hasKey = usesChatGpt
+    ? supportsChatGpt() && chatGpt.connected && chatGpt.permitted && Boolean(activeProfile.modelId)
+    : keyConfigured;
   // The model picker's discovery credentials, resolved only when the picker is
   // shown. Not memoized: the runtime env it reads can change without the
   // profile changing.
@@ -319,6 +341,16 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
       }),
     [mapControllerRef, commitQueue],
   );
+
+  // Account changes invalidate both conversation history and pending approvals.
+  useEffect(() => {
+    if (!usesChatGpt) return;
+    session.reset();
+    declineAllPendingCode();
+    setTurns([]);
+    // Token renewal deliberately does not change the connection revision.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatGpt.revision, session, usesChatGpt]);
 
   // Tear down the session and any in-flight run on unmount. Drain the queue ref
   // synchronously (resolving each pending approval as declined) so their blocked
@@ -434,8 +466,13 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
    * @param prompt - The already-trimmed request.
    * @param options.spoken - Whether it was dictated, so the reply is read back.
    */
-  const runPrompt = async (prompt: string, options: { spoken?: boolean } = {}) => {
-    if (!prompt || runningRef.current || !hasKey) return;
+  const runPrompt = async (
+    prompt: string,
+    options: { spoken?: boolean; images?: readonly AssistantImage[] } = {},
+  ) => {
+    const images = options.images ?? [];
+    if ((!prompt && !images.length) || runningRef.current || !hasKey || attachments.loading) return;
+    if (!prompt) prompt = "Describe the attached images.";
     // New intent supersedes old, typed as much as spoken: a reply still being
     // read aloud answers the previous question, and the run that produced it has
     // already been marked finished, so nothing else would stop it talking over
@@ -449,6 +486,7 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
     const myGeneration = (sendGenerationRef.current += 1);
     setRunning(true);
     setInput("");
+    if (images.length) attachments.clear();
     // Only a dictated run drives the voice status. Typing while the microphone
     // happens to be open would otherwise flip the strip to "Working on what you
     // said…", claiming it heard something the user only typed.
@@ -466,12 +504,12 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
     const assistantId = (turnIdRef.current += 1);
     setTurns((prev) => [
       ...prev,
-      { id: userId, role: "user", text: prompt },
+      { id: userId, role: "user", text: prompt, images },
       { id: assistantId, role: "assistant", text: "" },
     ]);
 
     try {
-      for await (const event of session.stream(prompt)) {
+      for await (const event of session.stream(prompt, images)) {
         if (event.type === "text") {
           replyText += event.text;
           setTurns((prev) =>
@@ -512,8 +550,8 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
           isOllamaNetworkFailure(error)
             ? withOllamaOriginHint(t("settings.ai.ollamaNetworkFailure"))
             : error instanceof Error
-              ? error.message
-              : String(error);
+            ? error.message
+            : String(error);
         const errorId = (turnIdRef.current += 1);
         setTurns((prev) => [...prev, { id: errorId, role: "error", text: message }]);
       }
@@ -554,7 +592,7 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
   };
 
   /** Sends the composer's draft. */
-  const send = () => runPrompt(input.trim());
+  const send = () => runPrompt(input.trim(), { images: usesChatGpt ? attachments.images : [] });
 
   /**
    * Cancels the agent run in flight, leaving voice mode alone.
@@ -593,7 +631,7 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
    * back the send guards instead of closing over this render's state.
    */
   const voice = useVoiceCommands({
-    enabled: hasKey,
+    enabled: hasKey && !usesChatGpt,
     onInterim: setVoiceInterim,
     onTranscript: (text) => {
       setVoiceInterim("");
@@ -617,6 +655,7 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
   const clearConversation = () => {
     stop();
     setTurns([]);
+    attachments.clear();
     session.reset();
   };
 
@@ -630,7 +669,10 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
           isComposing: event.nativeEvent.isComposing,
           keyCode: event.nativeEvent.keyCode,
         },
-        Boolean(input.trim()) && !runningRef.current && hasKey,
+        Boolean(input.trim() || (usesChatGpt && attachments.images.length)) &&
+          !attachments.loading &&
+          !runningRef.current &&
+          hasKey,
       )
     ) {
       event.preventDefault();
@@ -790,7 +832,7 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
           </span>
         ) : null}
         <div className="ms-auto flex items-center gap-1">
-          {hasKey && aiProfiles.length > 0 ? (
+          {aiProfiles.length > 0 ? (
             <>
               <Select
                 aria-label={t("assistant.profile")}
@@ -808,6 +850,13 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
                   </option>
                 ))}
               </Select>
+              {activeProfile?.provider === "chatgpt" && (
+                <ChatGptModelPicker
+                  value={activeProfile.modelId}
+                  onChange={onModelChange}
+                  disabled={running}
+                />
+              )}
               {activeProfile && PROVIDER_MODELS[activeProfile.provider].length > 0 ? (
                 hasModelPicker(activeProfile.provider) ? (
                   <ProviderModelPicker
@@ -886,6 +935,9 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
                 {t("assistant.setupProviders")}
               </p>
               <ul aria-label={t("assistant.setupProviders")} className="space-y-1">
+                {supportsChatGpt() && (
+                  <li className="text-xs">ChatGPT subscription — Continue with ChatGPT</li>
+                )}
                 {SETUP_PROVIDERS.map(({ id, envs }) => (
                   <li key={id} className="flex items-start justify-between gap-3 text-xs">
                     <span className="shrink-0 text-foreground">{PROVIDER_LABELS[id]}</span>
@@ -947,6 +999,18 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
               return (
                 <div key={turn.id} className="whitespace-pre-wrap font-medium text-foreground">
                   {`❯ ${turn.text}`}
+                  {Boolean(turn.images?.length) && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {turn.images?.map((image) => (
+                        <img
+                          key={image.id}
+                          src={image.dataUrl}
+                          alt={image.name}
+                          className="h-24 max-w-48 rounded border object-contain"
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             }
@@ -984,6 +1048,62 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
         </div>
       ) : (
         <div className="border-t">
+          {usesChatGpt && (
+            <div className="px-3 pt-2">
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept={IMAGE_ACCEPT}
+                multiple
+                hidden
+                aria-label="Attach images"
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? []);
+                  event.target.value = "";
+                  if (!runningRef.current && hasKey) void attachments.addFiles(files);
+                }}
+              />
+              {attachments.images.length > 0 && (
+                <ul aria-label="Attached images" className="flex flex-wrap gap-2">
+                  {attachments.images.map((image) => (
+                    <li key={image.id} className="relative rounded border p-1">
+                      <img
+                        src={image.dataUrl}
+                        alt={image.name}
+                        className="h-16 w-24 object-contain"
+                      />
+                      <span className="block max-w-24 truncate text-xs" title={image.name}>
+                        {image.name}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        className="absolute end-0 top-0 h-5 w-5"
+                        aria-label={`Remove ${image.name}`}
+                        onClick={() => attachments.remove(image.id)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {attachments.loading && (
+                <p role="status" className="text-xs text-muted-foreground">
+                  Preparing images…
+                </p>
+              )}
+              {attachments.error && (
+                <p role="alert" className="text-xs text-destructive">
+                  {attachments.error}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Attach or paste PNG, JPEG, or WebP images. Up to 4 per message, 4 MB each.
+              </p>
+            </div>
+          )}
           {voice.supported && (voiceActive || voice.errorKey) ? (
             <div className="flex items-center gap-2 px-3 pt-2 text-xs">
               {/* Bars are driven per frame straight from the analyser (see
@@ -1028,6 +1148,25 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
             </div>
           ) : null}
           <div className="flex items-end gap-2 px-3 py-2">
+            {usesChatGpt && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                aria-label="Attach images"
+                title="Attach images"
+                disabled={
+                  !hasKey ||
+                  running ||
+                  attachments.loading ||
+                  attachments.images.length >= MAX_IMAGES
+                }
+                onClick={() => imageInputRef.current?.click()}
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
+            )}
             <Textarea
               ref={inputRef}
               value={input}
@@ -1038,6 +1177,14 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
                 }
               }}
               onKeyDown={onKeyDown}
+              onPaste={(event) => {
+                if (!usesChatGpt || !hasKey || runningRef.current) return;
+                const files = Array.from(event.clipboardData.files);
+                if (files.length) {
+                  event.preventDefault();
+                  void attachments.addFiles(files);
+                }
+              }}
               placeholder={t("assistant.placeholder")}
               spellCheck
               rows={2}
@@ -1046,7 +1193,7 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
               disabled={!hasKey}
               className="min-h-[2.5rem] flex-1 resize-none text-sm"
             />
-            {voice.supported ? (
+            {voice.supported && !usesChatGpt ? (
               <>
                 {voice.canSpeak ? (
                   <Button
@@ -1105,7 +1252,11 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
               <Button
                 size="sm"
                 onClick={() => void send()}
-                disabled={!hasKey || !input.trim()}
+                disabled={
+                  !hasKey ||
+                  attachments.loading ||
+                  (!input.trim() && !(usesChatGpt && attachments.images.length))
+                }
                 title={t("assistant.sendHint")}
               >
                 <Send className="me-1 h-4 w-4" />

@@ -28,6 +28,8 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ChatGptSettings } from "../ChatGptSettings";
+import { supportsChatGpt } from "../../lib/assistant/chatgpt-connection";
 import { useTranslation } from "react-i18next";
 import {
   DEFAULT_OLLAMA_BASE_URL,
@@ -332,15 +334,20 @@ export function AiSectionContent({
                 ollamaDiscovery.reset();
               }}
             >
-              {ASSISTANT_PROVIDER_IDS.map((id) => (
-                <option key={id} value={id}>
-                  {PROVIDER_LABELS[id]}
-                </option>
-              ))}
+              {ASSISTANT_PROVIDER_IDS.filter((id) => id !== "chatgpt" || supportsChatGpt()).map(
+                (id) => (
+                  <option key={id} value={id}>
+                    {PROVIDER_LABELS[id]}
+                  </option>
+                ),
+              )}
             </Select>
           </div>
 
           {/* Model selector for providers with preset or live model lists */}
+          {newProfileProvider === "chatgpt" && (
+            <ChatGptSettings model={newProfileModel} onModelChange={setNewProfileModel} />
+          )}
           {PROVIDER_MODELS[newProfileProvider].length > 0 ? (
             <div className="space-y-1.5">
               <Label className="text-xs">{t("assistant.model")}</Label>
@@ -425,16 +432,18 @@ export function AiSectionContent({
           ) : null}
 
           {/* Secrets note */}
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
-            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
-              {t(
-                credentialStorageLocation() === "keychain"
-                  ? "settings.ai.secretsNoteKeychain"
-                  : "settings.ai.secretsNote",
-              )}
-            </span>
-          </div>
+          {newProfileProvider !== "chatgpt" && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                {t(
+                  credentialStorageLocation() === "keychain"
+                    ? "settings.ai.secretsNoteKeychain"
+                    : "settings.ai.secretsNote",
+                )}
+              </span>
+            </div>
+          )}
 
           {/* Credential fields for the selected provider */}
           <div className="space-y-4">
@@ -634,9 +643,11 @@ function ProfileEditor({
               // OLLAMA_HOST alias, so seeding the default over a profile that
               // only carries the alias would shadow a real custom value.
               fieldValues:
-                seedBaseUrl && !p.fieldValues?.OLLAMA_BASE_URL && !p.fieldValues?.OLLAMA_HOST
-                  ? { ...p.fieldValues, OLLAMA_BASE_URL: DEFAULT_OLLAMA_BASE_URL }
-                  : p.fieldValues,
+                provider === "chatgpt"
+                  ? {}
+                  : seedBaseUrl && !p.fieldValues?.OLLAMA_BASE_URL && !p.fieldValues?.OLLAMA_HOST
+                    ? { ...p.fieldValues, OLLAMA_BASE_URL: DEFAULT_OLLAMA_BASE_URL }
+                    : p.fieldValues,
             }
           : p,
       ),
@@ -719,15 +730,20 @@ function ProfileEditor({
           value={profile.provider}
           onChange={(e) => updateProvider(e.target.value as AssistantProviderId)}
         >
-          {ASSISTANT_PROVIDER_IDS.map((id) => (
-            <option key={id} value={id}>
-              {PROVIDER_LABELS[id]}
-            </option>
-          ))}
+          {ASSISTANT_PROVIDER_IDS.filter((id) => id !== "chatgpt" || supportsChatGpt()).map(
+            (id) => (
+              <option key={id} value={id}>
+                {PROVIDER_LABELS[id]}
+              </option>
+            ),
+          )}
         </Select>
       </div>
 
       {/* Model selector */}
+      {profile.provider === "chatgpt" && (
+        <ChatGptSettings model={profile.modelId} onModelChange={updateModel} />
+      )}
       {models.length > 0 ? (
         <div className="space-y-1.5">
           <Label className="text-xs">{t("assistant.model")}</Label>
@@ -781,16 +797,18 @@ function ProfileEditor({
       ) : null}
 
       {/* Secrets note */}
-      <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
-        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-        <span>
-          {t(
-            credentialStorageLocation() === "keychain"
-              ? "settings.ai.secretsNoteKeychain"
-              : "settings.ai.secretsNote",
-          )}
-        </span>
-      </div>
+      {profile.provider !== "chatgpt" && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {t(
+              credentialStorageLocation() === "keychain"
+                ? "settings.ai.secretsNoteKeychain"
+                : "settings.ai.secretsNote",
+            )}
+          </span>
+        </div>
+      )}
 
       {/* OS env note */}
       {hasOsEnvNote ? (

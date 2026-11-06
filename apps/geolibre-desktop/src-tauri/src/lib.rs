@@ -1,4 +1,5 @@
 mod arcgis_http;
+mod chatgpt;
 #[cfg(windows)]
 mod spacemouse;
 mod aws_credentials;
@@ -499,7 +500,14 @@ pub fn run() {
         });
 
     let app = builder
+        .manage(chatgpt::ChatGptState::default())
         .invoke_handler(tauri::generate_handler![
+            chatgpt::chatgpt_status,
+            chatgpt::chatgpt_sign_in,
+            chatgpt::chatgpt_sign_out,
+            chatgpt::chatgpt_models,
+            chatgpt::chatgpt_stream,
+            chatgpt::chatgpt_cancel,
             close_oauth_popups,
             native_duckdb::count_native_vector_file_features,
             ensure_martin_binary,

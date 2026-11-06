@@ -20,6 +20,7 @@ export interface ProviderField {
 
 /** The credential fields each provider exposes, mirroring what {@link ./provider.configForProvider} reads. */
 export const PROVIDER_FIELDS = {
+  chatgpt: [],
   google: [
     {
       envKey: "GEMINI_API_KEY",

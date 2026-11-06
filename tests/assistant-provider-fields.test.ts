@@ -26,8 +26,12 @@ function envFrom(provider: AssistantProviderId, envKeys: readonly string[]): Run
 }
 
 describe("PROVIDER_FIELDS", () => {
-  it("defines at least one field for every provider", () => {
+  it("defines credential fields for key-based providers and none for ChatGPT sign-in", () => {
     for (const provider of ASSISTANT_PROVIDER_IDS) {
+      if (provider === "chatgpt") {
+        assert.deepEqual(PROVIDER_FIELDS[provider], []);
+        continue;
+      }
       assert.ok(PROVIDER_FIELDS[provider].length > 0, `${provider} has no fields`);
     }
   });
@@ -59,6 +63,14 @@ describe("PROVIDER_FIELDS", () => {
 
   it("marks a provider configured once all its required fields are filled", () => {
     for (const provider of ASSISTANT_PROVIDER_IDS) {
+      if (provider === "chatgpt") {
+        assert.equal(
+          availableProviders({}).includes(provider),
+          false,
+          "ChatGPT requires a native connection, not fields",
+        );
+        continue;
+      }
       const required = PROVIDER_FIELDS[provider]
         .filter((field) => field.required)
         .map((field) => field.envKey);

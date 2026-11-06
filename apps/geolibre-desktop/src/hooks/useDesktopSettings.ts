@@ -526,7 +526,13 @@ function normalizeAssistantProfiles(value: unknown, legacyEnv: unknown): Assista
         }
       }
 
-      profiles.push({ id, name, provider, modelId, fieldValues });
+      profiles.push({
+        id,
+        name,
+        provider,
+        modelId,
+        fieldValues: provider === "chatgpt" ? {} : fieldValues,
+      });
     }
   }
 

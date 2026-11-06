@@ -53,6 +53,7 @@ export function splitDesktopSettingsSecrets(settings: DesktopSettings): {
     publicSettings[field] = "";
   }
   publicSettings.aiProfiles = settings.aiProfiles.map((profile) => {
+    if (profile.provider === "chatgpt") return { ...profile, fieldValues: {} };
     const fieldValues: Record<string, string> = {};
     for (const [key, value] of Object.entries(profile.fieldValues)) {
       if (!isSecretAssistantField(profile.provider, key)) {

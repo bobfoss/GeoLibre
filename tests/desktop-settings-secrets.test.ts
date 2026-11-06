@@ -24,6 +24,30 @@ const settings = normalizeDesktopSettings({
 });
 
 describe("desktop settings secrets", () => {
+  it("subscription profiles cannot persist credentials in settings or generic secret storage", () => {
+    const injected = normalizeDesktopSettings({
+      aiProfiles: [
+        {
+          id: GOOGLE_ID,
+          name: "Subscription",
+          provider: "chatgpt",
+          model: "account-model",
+          fieldValues: { access_token: "must-not-export", refresh_token: "must-not-export" },
+        },
+      ],
+    });
+    assert.deepEqual(injected.aiProfiles[0].fieldValues, {});
+    // Also exercise the export boundary independently of normalization.
+    injected.aiProfiles[0].fieldValues = { access_token: "must-not-export" };
+    const split = splitDesktopSettingsSecrets(injected);
+    assert.deepEqual(split.publicSettings.aiProfiles[0].fieldValues, {});
+    assert.ok(!JSON.stringify(split).includes("must-not-export"));
+    assert.ok(
+      !desktopSettingsSecretAccounts(injected).some((account) =>
+        account.startsWith(`ai.${GOOGLE_ID}.`),
+      ),
+    );
+  });
   it("moves tokens and secret AI fields out of the public settings", () => {
     const { publicSettings, secrets } = splitDesktopSettingsSecrets(settings);
     assert.equal(publicSettings.shareToken, "");

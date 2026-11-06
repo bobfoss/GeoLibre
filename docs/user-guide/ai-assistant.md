@@ -20,6 +20,51 @@ until you send a prompt to the configured provider.
 
 ## Setup: choose an AI provider
 
+### ChatGPT subscription on Windows
+
+The Windows desktop app also supports **ChatGPT subscription** in **Settings →
+AI Providers**. Add a profile, choose this provider, and select **Continue with
+ChatGPT**. Complete sign-in in your system browser and allow GeoLibre to use your
+plan. Eligible Plus/Pro accounts can then select a model from their account's live
+catalog and save the profile. No API key or Codex CLI installation is needed.
+
+This uses the existing AI Assistant and its GeoLibre tools, including undoable map
+operations. Requests consume your existing ChatGPT plan allowance. The app never
+automatically falls back to an API key when subscription access fails. Use **Manage
+ChatGPT usage** to review app limits in ChatGPT. Model availability and account
+eligibility are determined by OpenAI; a successful sign-in alone does not guarantee
+that every model request will be accepted.
+
+One account can be connected at a time. Sign-in and sign-out take effect immediately,
+while profile/model edits use the normal Settings save controls. To switch accounts,
+sign out, then select **Use a different account**. Deleting a provider profile does
+not sign out the device. Tokens stay in a Windows-user-encrypted file managed by the
+native app, outside projects and browser storage, and the connection survives an app
+restart. This provider supports text, image attachments, and GeoLibre function tools;
+it does not import ChatGPT conversations or provide voice/image generation.
+
+Use **Attach images** beside the message box, or paste a screenshot into the box.
+PNG, JPEG, and WebP are supported: up to four images per message, 4 MB per image,
+40 megapixels per image, and 8 MB of image data per conversation. Remove an image
+with its **×** button before sending. Images can be sent with a question or on their
+own, and remain available for follow-up questions in that conversation. They are
+sent through the selected ChatGPT connection only when you press **Send**, and
+consume plan usage. The selected model must support image input.
+
+Attachments and previews stay in the current assistant session; they are not saved
+in settings or exported projects. Clear the conversation to release its images and
+reset the image budget. Closing the assistant, changing accounts, or signing out
+also discards the conversation. Switching provider/model clears pending attachments.
+
+If consent was declined, connect again and grant plan usage. If authorization has
+expired or was revoked, sign out and reconnect. Usage-limit errors require reviewing
+your ChatGPT limits; connection or service errors can be retried later. A disconnected
+stream is shown as an error and unfinished tool calls are not executed. If sign-out
+cannot confirm remote revocation or remove saved credentials, disconnect GeoLibre
+in ChatGPT settings as directed by the message.
+
+### Other providers
+
 The assistant is **provider-pluggable** — it uses the
 [Strands Agents](https://strandsagents.com) SDK. Configure one or more
 providers in **Settings → AI Providers**:

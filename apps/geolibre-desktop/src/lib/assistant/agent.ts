@@ -15,6 +15,8 @@ import {
 } from "./fast-path";
 import { resolveSystemOneEndpoint } from "./system-one";
 import { typesafeFetch } from "./typesafe-fetch";
+import { useChatGptConnection } from "./chatgpt-connection";
+import { imageContent, MAX_CONVERSATION_IMAGE_BYTES, type AssistantImage } from "./images";
 import {
   assistantSelectionKey,
   configForProfile,
@@ -88,6 +90,8 @@ function fastPathState(): FastPathState {
  */
 export class AssistantSession {
   private agent: Agent | null = null;
+  private chatGptRevision = -1;
+  private imageBytes = 0;
   /**
    * The tool registry version and activatable-plugin list the agent's tools
    * were composed from; a change to either refreshes them before the next prompt.
@@ -163,6 +167,7 @@ export class AssistantSession {
     this.agent?.cancel();
     this.agent = null;
     this.lastContext = null;
+    this.imageBytes = 0;
     this.pluginTools.clear();
   }
 
@@ -302,11 +307,13 @@ export class AssistantSession {
     const config = this.profile
       ? configForProfile(this.profile)
       : this.selection
-        ? configForProvider(this.selection.provider, this.selection.model)
-        : resolveProviderConfig();
+      ? configForProvider(this.selection.provider, this.selection.model)
+      : resolveProviderConfig();
 
     if (!config) {
       const pinned = this.selection?.provider ?? this.profile?.provider;
+      if (pinned === "chatgpt")
+        throw new Error("Connect ChatGPT in Settings → AI Providers and allow subscription usage.");
       throw new Error(
         pinned
           ? `No API key for the selected provider "${pinned}". Add its key in Settings → Environment variables, or pick another provider.`
@@ -329,7 +336,10 @@ export class AssistantSession {
    * @param prompt The user's natural-language request.
    * @yields {@link AssistantStreamEvent} updates as the model and tools run.
    */
-  async *stream(prompt: string): AsyncGenerator<AssistantStreamEvent> {
+  async *stream(
+    prompt: string,
+    images: readonly AssistantImage[] = [],
+  ): AsyncGenerator<AssistantStreamEvent> {
     // Guard before ensureAgent can refresh tools, including callers outside the UI.
     if (this.streaming) throw new Error("An assistant response is already in progress.");
     this.streaming = true;
@@ -338,9 +348,25 @@ export class AssistantSession {
       // This runs before ensureAgent so it also works while no LLM provider is
       // configured — and, crucially, before any conversation state is touched,
       // so a fast-path turn leaves the agent's history exactly as it found it.
-      if (yield* this.streamFastPath(prompt)) return;
+      const provider =
+        this.profile?.provider ?? this.selection?.provider ?? resolveProviderConfig()?.provider;
+      if (images.length && provider !== "chatgpt")
+        throw new Error("Image attachments currently require the ChatGPT subscription provider.");
+      if (provider === "chatgpt") {
+        const revision = useChatGptConnection.getState().revision;
+        if (revision !== this.chatGptRevision) {
+          this.reset();
+          this.chatGptRevision = revision;
+        }
+      } else if (yield* this.streamFastPath(prompt)) return;
 
       const agent = await this.ensureAgent();
+      const imageBlocks = imageContent(images);
+      const addedBytes = images.reduce((total, image) => total + image.byteLength, 0);
+      if (this.imageBytes + addedBytes > MAX_CONVERSATION_IMAGE_BYTES)
+        throw new Error(
+          "This conversation has reached its 8 MB image limit. Clear the conversation before attaching more images.",
+        );
       // Only prepend the layer context when it changed since the last message, so
       // long conversations don't re-send the full layer list on every turn.
       const context = describeLayers(useAppStore.getState().layers);
@@ -349,8 +375,11 @@ export class AssistantSession {
           ? prompt
           : `Current layers:\n${context}\n\nUser request: ${prompt}`;
       this.lastContext = context;
+      this.imageBytes += addedBytes;
 
-      for await (const event of agent.stream(message)) {
+      for await (const event of agent.stream(
+        imageBlocks.length ? [{ text: message }, ...imageBlocks] : message,
+      )) {
         // Text deltas as the model writes its reply. `event.event` is the SDK's
         // normalized ModelStreamEvent (provider-agnostic), so we narrow on its
         // public discriminants rather than casting to an ad-hoc shape.
