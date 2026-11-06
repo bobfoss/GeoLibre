@@ -9,7 +9,7 @@ import {
   within,
 } from "./helpers/dom";
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, mock } from "node:test";
 import { createElement } from "react";
 
 // Loaded after the harness so its CSS imports and Vite globals are handled.
@@ -147,6 +147,38 @@ describe("SettingsDialog", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Save settings" }));
 
     assert.equal(useAppStore.getState().preferences.map.restrictBounds, !before);
+  });
+
+  it("saves SpaceMouse preferences locally and discards cancelled edits", () => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", { configurable: true, value: {} });
+    const agent = mock.getter(navigator, "userAgent", () => "Windows");
+    try {
+      renderSettings();
+      let dialog = openAt("map");
+      fireEvent.click(checkbox(dialog, "Invert zoom"));
+      fireEvent.change(within(dialog).getByRole("spinbutton", { name: "Sensitivity" }), {
+        target: { value: "2" },
+      });
+      assert.equal(useDesktopSettingsStore.getState().desktopSettings.spaceMouse.invertZoom, false);
+      fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      dialog = openAt("map");
+      assert.equal(checkbox(dialog, "Invert zoom").checked, false);
+      fireEvent.click(checkbox(dialog, "Invert zoom"));
+      fireEvent.change(within(dialog).getByRole("spinbutton", { name: "Sensitivity" }), {
+        target: { value: "2" },
+      });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Save settings" }));
+      assert.deepEqual(useDesktopSettingsStore.getState().desktopSettings.spaceMouse, {
+        enabled: true,
+        sensitivity: 2,
+        deadZone: 0.05,
+        invertZoom: true,
+      });
+      assert.equal("spaceMouse" in useAppStore.getState().preferences, false);
+    } finally {
+      agent.mock.restore();
+      delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+    }
   });
 
   it("does not promise project keychain storage when desktop hydration failed", () => {

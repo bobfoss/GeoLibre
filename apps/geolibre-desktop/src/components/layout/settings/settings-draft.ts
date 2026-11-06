@@ -60,6 +60,7 @@ export interface DraftDesktopSettings {
   uiProfile: UiProfileSettings;
   updates: UpdateSettings;
   startup: StartupSettings;
+  spaceMouse: DesktopSettings["spaceMouse"];
 }
 
 /**
@@ -199,6 +200,7 @@ export function cloneDesktopSettings(
     },
     updates: { ...settings.updates },
     startup: { ...settings.startup, center: [...settings.startup.center] },
+    spaceMouse: { ...settings.spaceMouse },
   };
 }
 

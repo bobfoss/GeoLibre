@@ -2953,6 +2953,15 @@
       "loadWarning": "The startup project is unavailable. GeoLibre opened the default workspace instead.",
       "storedCopyWarning": "GeoLibre could not read the project file and opened the copy it kept when the project was last opened or saved. Changes made to the file since may be missing. Open the file again with Open project from file to load its current contents."
     },
+    "spaceMouse": {
+      "title": "SpaceMouse",
+      "description": "Navigate the primary map with a USB SpaceMouse on Windows. Settings are saved on this device.",
+      "enabled": "Enable SpaceMouse navigation",
+      "sensitivity": "Sensitivity",
+      "deadZone": "Dead zone (%)",
+      "invertZoom": "Invert zoom",
+      "controls": "Push to pan, lift or press to zoom, tilt to change pitch, and twist to rotate. The horizon stays level. Navigation pauses in dialogs and text fields."
+    },
     "map": {
       "constraintsTitle": "Map constraints",
       "restrictBounds": "Restrict map bounds",

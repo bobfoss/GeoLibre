@@ -28,6 +28,7 @@ import {
 import { CrsPickerInput } from "../../processing/CrsPickerInput";
 import { roundCoordinate } from "./settings-draft";
 import { useSettingsDraft } from "./SettingsDraftContext";
+import { SpaceMouseSettings } from "./SpaceMouseSettings";
 
 /** The settings picker's groups of map CRS presets, by the body they map. */
 const MAP_CRS_GROUPS = ["earth", "moon", "mars", "other"] as const;
@@ -213,6 +214,7 @@ export function MapSection({ mapControllerRef, liveProjection }: MapSectionProps
 
   return (
     <div className="space-y-5">
+      <SpaceMouseSettings />
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold">{t("settings.map.constraintsTitle")}</h3>

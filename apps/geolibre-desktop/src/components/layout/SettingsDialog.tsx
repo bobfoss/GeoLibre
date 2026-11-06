@@ -559,6 +559,7 @@ export function SettingsDialog({
       uiProfile: committedUiProfile,
       updates: draftDesktopSettings.updates,
       startup: draftDesktopSettings.startup,
+      spaceMouse: draftDesktopSettings.spaceMouse,
     });
     // On Android the project behind the preference just saved is reachable only
     // until this process ends, so keep a copy the next launch can open

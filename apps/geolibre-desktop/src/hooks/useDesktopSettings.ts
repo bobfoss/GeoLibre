@@ -10,6 +10,11 @@ import {
 } from "@geolibre/core";
 import { useEffect } from "react";
 import { create } from "zustand";
+import {
+  DEFAULT_SPACEMOUSE_SETTINGS,
+  normalizeSpaceMouseSettings,
+  type SpaceMouseSettings,
+} from "../lib/spacemouse";
 import { normalizeStringList } from "../lib/string-lists";
 import { DESKTOP_SETTINGS_STORAGE_KEY } from "../lib/storage-keys";
 import {
@@ -135,6 +140,7 @@ export interface DesktopSettings {
   updates: UpdateSettings;
   /** Native-app project restoration policy. Browser builds ignore this setting. */
   startup: StartupSettings;
+  spaceMouse: SpaceMouseSettings;
 }
 
 export type StartupProjectMode = "default" | "last" | "specific";
@@ -364,6 +370,7 @@ const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
   uiProfile: DEFAULT_UI_PROFILE_SETTINGS,
   updates: DEFAULT_UPDATE_SETTINGS,
   startup: DEFAULT_STARTUP_SETTINGS,
+  spaceMouse: DEFAULT_SPACEMOUSE_SETTINGS,
 };
 
 /** The experience-level presets, in order. Single source of truth. */
@@ -409,6 +416,7 @@ export function normalizeDesktopSettings(settings: unknown): DesktopSettings {
     uiProfile: normalizeUiProfileSettings(candidate.uiProfile),
     updates: normalizeUpdateSettings(candidate.updates),
     startup: normalizeStartupSettings(candidate.startup),
+    spaceMouse: normalizeSpaceMouseSettings(candidate.spaceMouse),
   };
 }
 

@@ -93,6 +93,7 @@ import { PrimaryArcgisCanvas } from "./PrimaryArcgisCanvas";
 import { PrimaryCesiumCanvas } from "./PrimaryCesiumCanvas";
 import { RemoteCursorsOverlay } from "./RemoteCursorsOverlay";
 import { useCommandBridge } from "../../hooks/useCommandBridge";
+import { useSpaceMouse } from "../../hooks/useSpaceMouse";
 import { useEmbedApi } from "../../hooks/useEmbedApi";
 import { useJupyterRelay } from "../../hooks/useJupyterRelay";
 import {
@@ -358,6 +359,7 @@ export function DesktopShell({
   // Request/reply + event channel backing the Python scripting API (live
   // queries, processing, map events). Also inert when not embedded.
   useCommandBridge(mapControllerRef, mapReadyGeneration);
+  useSpaceMouse(mapControllerRef, mapReadyGeneration);
   // Runtime postMessage API for a third-party host page that frames the app
   // (fly to a record, highlight it, open a tool; selection/view/tool events back
   // out). Off unless the deployment configured GEOLIBRE_EMBED_ORIGINS.

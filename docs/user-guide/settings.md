@@ -50,6 +50,31 @@ Use **Use Current View** to set the bounds from where the map is now, or **Reset
 !!! tip "Capturing bounds on the globe"
     **Use Current View** is most accurate in the Mercator projection. In the Globe projection the map can still drift slightly beyond the captured bounds, and the dialog says so.
 
+### SpaceMouse (Windows desktop)
+
+Connect a 3Dconnexion SpaceMouse by USB, focus GeoLibre, and move the cap to
+navigate the primary map. This includes a SpaceMouse Wireless connected with
+its USB cable. Support reads USB HID reports directly; there is no browser permission
+prompt or additional GeoLibre driver to install.
+
+- Push left/right or forward/back to pan relative to the current map view.
+- Lift/press the cap to zoom; **Invert zoom** reverses this direction.
+- Tilt forward/back to change pitch, and twist to change bearing.
+- The horizon stays level: side tilt (roll) and device buttons are not mapped.
+
+In **Settings → Map → SpaceMouse**, enable or disable navigation, adjust
+**Sensitivity** (0.1–4, default 1), and set the **Dead zone (%)** (0–30,
+default 5) to suppress small movements near the resting position. Save applies
+these device-local settings; they are not included in shared project files.
+
+Navigation pauses while editing a text field, while a dialog is open, and when
+GeoLibre loses focus. Disconnecting the device or stopping its motion reports
+also stops navigation. The map renderer still enforces project view constraints;
+2D views cannot tilt. Split layouts use the primary map and existing view-sync
+settings. This implementation targets standard 3Dconnexion USB HID motion
+reports; Bluetooth, vendor button profiles, and other operating systems have
+not been validated.
+
 ## Layout
 
 **Settings → Layout Settings** toggles the chrome around the map:

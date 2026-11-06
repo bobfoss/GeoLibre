@@ -1,4 +1,6 @@
 mod arcgis_http;
+#[cfg(windows)]
+mod spacemouse;
 mod aws_credentials;
 mod aws_sts;
 mod plugin_http;
@@ -5009,7 +5011,13 @@ fn create_main_window(app: &mut tauri::App) -> tauri::Result<()> {
         })
     };
 
-    builder.build()?;
+    let window = builder.build()?;
+    #[cfg(windows)]
+    if let Err(error) = spacemouse::install(&window) {
+        eprintln!("SpaceMouse input unavailable: {error}");
+    }
+    #[cfg(not(windows))]
+    let _ = window;
 
     Ok(())
 }
