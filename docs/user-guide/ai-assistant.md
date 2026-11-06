@@ -55,6 +55,8 @@ Attachments and previews stay in the current assistant session; they are not sav
 in settings or exported projects. Clear the conversation to release its images and
 reset the image budget. Closing the assistant, changing accounts, or signing out
 also discards the conversation. Switching provider/model clears pending attachments.
+When skills are enabled, sent attachments are also copied to a temporary local
+working directory for approved skill scripts; see **Install assistant skills** below.
 
 If consent was declined, connect again and grant plan usage. If authorization has
 expired or was revoked, sign out and reconnect. Usage-limit errors require reviewing
@@ -591,7 +593,59 @@ load a CSV from a URL with pandas and summarize its columns
 - The unofficial Google Maps tile endpoints are intentionally **not** included;
   use the listed officially-supported basemaps or supply your own XYZ URL.
 
-## Not the same as the agent skill
+## Install assistant skills (Windows desktop)
+
+Open **Settings → AI Providers → Skills**. Import a folder containing `SKILL.md`,
+or enter a public `https://github.com/owner/repository` URL. For repositories with
+multiple skills, also enter the folder path, such as `skills/my-skill`.
+GitHub imports record the exact commit and copy only the selected skill package.
+Imports start disabled: review the instructions and file list, then select **Enable**.
+You can ask the assistant to use `$skill-name`, or let it match the request to the
+enabled skill descriptions. Instructions and reference files load on demand.
+Enable, disable and remove apply immediately and clear the current conversation.
+
+For example, import `https://github.com/Oldcircle/geo-sleuth` with folder
+`skills/geo-sleuth`. Enable it, attach a photo using a ChatGPT subscription profile,
+and ask the assistant to use `$geo-sleuth`. Start by asking it to run the package's
+`scripts/doctor.py` and report missing dependencies. The package is third-party
+software, independently versioned; GeoLibre contains no Geo Sleuth-specific code.
+Optional services, browser automation, API credentials and large vision-model
+downloads may be required by individual workflows. Installing a skill does not
+automatically supply those capabilities or guarantee a geolocation result.
+
+Skills can read their own references and images, use GeoLibre's existing tools,
+and request execution of installed `scripts/*.py` files. Each native script run
+shows its source, package digest, arguments and stated purpose for approval,
+even if ordinary assistant code was previously allowed for the session. Declining
+prevents execution. This uses GeoLibre's managed `uv` runtime and Python 3.12;
+inline Python dependency metadata is supported. `SKILL_DIR` and `CLAUDE_SKILL_DIR`
+point to the package, and the corresponding `${...}` tokens in arguments are
+expanded without a shell. Other shell syntax, arbitrary executables and automatic
+skill hooks are not supported.
+
+Approved scripts run with your Windows user privileges, including filesystem and
+network access. They are **not sandboxed**. Check the purpose and destination
+before approving commands that upload photos or download dependencies. Native
+script effects are not covered by map Undo. **Stop** terminates the process group;
+runs are serialized and stop after 15 minutes or 1 MB of console output.
+The assistant receives up to 128 KB of console output and can read generated
+text and PNG/JPEG/WebP evidence images. Evidence images also appear in the chat.
+
+Packages and their enabled state persist in app-local `assistant-skills/packages`.
+They do not enter exported settings or projects. Conversation attachments and
+outputs use a separate temporary working directory, cleared on cancellation,
+conversation reset or the next app launch. Export anything needed before clearing
+the conversation. Dependency caches persist. Removing a skill removes its package;
+it does not reverse files or network changes made by an approved script.
+
+To update, remove and reimport the package; updates are never automatic. A changed
+package fails its integrity check and must be imported again. Duplicate imports,
+unsafe paths, links/junctions, oversized packages, invalid frontmatter and download
+failures produce errors. If a repository has several skills, specify its folder.
+If GitHub is unavailable or rate-limited, download the repository yourself and
+use **Import local folder**. Only public GitHub repositories are supported here.
+
+## Using GeoLibre from an external agent
 
 The assistant runs **inside** GeoLibre and edits the map you are looking at. To
 have an AI agent *outside* GeoLibre — in a terminal, an editor, or a notebook —

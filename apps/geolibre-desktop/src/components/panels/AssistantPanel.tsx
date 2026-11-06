@@ -59,6 +59,7 @@ import {
   type AssistantProviderId,
 } from "../../lib/assistant/provider";
 import { useDesktopSettingsStore } from "../../hooks/useDesktopSettings";
+import { useAssistantSkills } from "../../lib/assistant/skills";
 import {
   activatePluginForAssistant,
   listAssistantActivatablePlugins,
@@ -282,7 +283,7 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
   // must not carry side effects). The state only mirrors the ref for rendering.
   type PendingCode = {
     id: number;
-    tool: "run_python" | "run_maplibre_js";
+    tool: "run_python" | "run_maplibre_js" | "run_skill_script";
     code: string;
     resolve: (approved: boolean) => void;
   };
@@ -332,7 +333,7 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
         // the user has opted into always-allow for this session). Prompt-injected
         // content could otherwise make the model run code that exfiltrates data.
         confirmCodeExecution: ({ tool, code }) =>
-          alwaysAllowCodeRef.current
+          alwaysAllowCodeRef.current && tool !== "run_skill_script"
             ? Promise.resolve(true)
             : new Promise<boolean>((resolve) => {
                 const id = (codeReqIdRef.current += 1);
@@ -341,6 +342,18 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
       }),
     [mapControllerRef, commitQueue],
   );
+
+  const skillsRevision = useAssistantSkills((state) => state.revision);
+  const seenSkillsRevision = useRef<number | null>(null);
+  useEffect(() => {
+    const previous = seenSkillsRevision.current;
+    seenSkillsRevision.current = skillsRevision;
+    if (previous === null || previous === 0) return;
+    cancelRun();
+    session.reset();
+    setTurns([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skillsRevision, session]);
 
   // Account changes invalidate both conversation history and pending approvals.
   useEffect(() => {
@@ -517,6 +530,14 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
               turn.id === assistantId ? { ...turn, text: turn.text + event.text } : turn,
             ),
           );
+        } else if (event.type === "image") {
+          setTurns((prev) =>
+            prev.map((turn) =>
+              turn.id === assistantId
+                ? { ...turn, images: [...(turn.images ?? []), event.image] }
+                : turn,
+            ),
+          );
         } else {
           const label = describeTool(event.name, event.input);
           const detail = event.error ? (label ? `${label} — ${event.error}` : event.error) : label;
@@ -550,8 +571,8 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
           isOllamaNetworkFailure(error)
             ? withOllamaOriginHint(t("settings.ai.ollamaNetworkFailure"))
             : error instanceof Error
-            ? error.message
-            : String(error);
+              ? error.message
+              : String(error);
         const errorId = (turnIdRef.current += 1);
         setTurns((prev) => [...prev, { id: errorId, role: "error", text: message }]);
       }
@@ -559,7 +580,13 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
       // Drop the assistant turn if it never produced text (e.g. tool-only run).
       setTurns((prev) =>
         prev.filter(
-          (turn) => !(turn.id === assistantId && turn.role === "assistant" && !turn.text),
+          (turn) =>
+            !(
+              turn.id === assistantId &&
+              turn.role === "assistant" &&
+              !turn.text &&
+              !turn.images?.length
+            ),
         ),
       );
       // Only clear the running state if no newer send has superseded this one
@@ -1016,22 +1043,35 @@ export function AssistantPanel({ mapControllerRef }: AssistantPanelProps) {
             }
             // Assistant replies are markdown — render (and sanitize) them.
             return (
-              <div
-                key={turn.id}
-                className={cn(
-                  "text-foreground",
-                  "[&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0",
-                  "[&_ul]:my-1 [&_ul]:list-disc [&_ul]:ps-5",
-                  "[&_ol]:my-1 [&_ol]:list-decimal [&_ol]:ps-5",
-                  "[&_a]:text-primary [&_a]:underline",
-                  "[&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs",
-                  "[&_pre]:my-1 [&_pre]:overflow-auto [&_pre]:rounded [&_pre]:bg-muted [&_pre]:p-2",
-                  "[&_pre_code]:bg-transparent [&_pre_code]:p-0",
+              <div key={turn.id}>
+                {Boolean(turn.images?.length) && (
+                  <div className="my-2 flex flex-wrap gap-2" aria-label="Skill evidence images">
+                    {turn.images?.map((image) => (
+                      <img
+                        key={image.id}
+                        src={image.dataUrl}
+                        alt={image.name}
+                        className="max-h-64 max-w-full rounded border object-contain"
+                      />
+                    ))}
+                  </div>
                 )}
-                dangerouslySetInnerHTML={{
-                  __html: renderAssistantMarkdown(turn.text),
-                }}
-              />
+                <div
+                  className={cn(
+                    "text-foreground",
+                    "[&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0",
+                    "[&_ul]:my-1 [&_ul]:list-disc [&_ul]:ps-5",
+                    "[&_ol]:my-1 [&_ol]:list-decimal [&_ol]:ps-5",
+                    "[&_a]:text-primary [&_a]:underline",
+                    "[&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs",
+                    "[&_pre]:my-1 [&_pre]:overflow-auto [&_pre]:rounded [&_pre]:bg-muted [&_pre]:p-2",
+                    "[&_pre_code]:bg-transparent [&_pre_code]:p-0",
+                  )}
+                  dangerouslySetInnerHTML={{
+                    __html: renderAssistantMarkdown(turn.text),
+                  }}
+                />
+              </div>
             );
           })
         )}
@@ -1289,13 +1329,13 @@ function CodeApprovalOverlay({
   code,
   onDecide,
 }: {
-  tool: "run_python" | "run_maplibre_js";
+  tool: "run_python" | "run_maplibre_js" | "run_skill_script";
   code: string;
   onDecide: (approved: boolean, alwaysAllow: boolean) => void;
 }) {
   const { t } = useTranslation();
   const [alwaysAllow, setAlwaysAllow] = useState(false);
-  const language = tool === "run_python" ? "Python" : "JavaScript";
+  const language = tool === "run_maplibre_js" ? "JavaScript" : "Python";
   // Move focus to the safe default (Decline) when the prompt opens so keyboard
   // users land inside the dialog, and let Escape dismiss it as a decline.
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -1347,14 +1387,16 @@ function CodeApprovalOverlay({
         <pre className="max-h-48 overflow-auto rounded border bg-muted p-2 text-xs">
           <code>{code}</code>
         </pre>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={alwaysAllow}
-            onChange={(event) => setAlwaysAllow(event.target.checked)}
-          />
-          {t("assistant.codeApprovalAlways")}
-        </label>
+        {tool !== "run_skill_script" && (
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={alwaysAllow}
+              onChange={(event) => setAlwaysAllow(event.target.checked)}
+            />
+            {t("assistant.codeApprovalAlways")}
+          </label>
+        )}
         <div className="flex justify-end gap-2">
           <Button
             ref={declineRef}

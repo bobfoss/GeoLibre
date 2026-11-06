@@ -81,13 +81,25 @@ export function chatGptInput(messages: Message[]): Item[] {
             arguments: JSON.stringify(block.input),
           });
           break;
-        case "toolResultBlock":
+        case "toolResultBlock": {
+          const evidence = block.content.filter((part) => part.type === "imageBlock");
           input.push({
             type: "function_call_output",
             call_id: block.toolUseId,
-            output: JSON.stringify(block.content),
+            output: JSON.stringify(block.content.filter((part) => part.type !== "imageBlock")),
           });
+          if (evidence.length) {
+            const content: Item[] = [{ type: "input_text", text: `Evidence images returned by tool call ${block.toolUseId}:` }];
+            for (const image of evidence) {
+              if (image.source.type !== "imageSourceBytes") throw new Error("Skill evidence must use local image bytes.");
+              imageBytes += image.source.bytes.length;
+              if (imageBytes > MAX_CONVERSATION_IMAGE_BYTES) throw new Error("This conversation has reached its 8 MB image limit. Clear the conversation.");
+              content.push({ type: "input_image", image_url: imageDataUrl(image.format, image.source.bytes), detail: "auto" });
+            }
+            input.push({ role: "user", content });
+          }
           break;
+        }
         default:
           throw new Error(
             "ChatGPT subscription supports text, image attachments, and GeoLibre tools.",

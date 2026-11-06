@@ -1,5 +1,6 @@
 mod arcgis_http;
 mod chatgpt;
+mod assistant_skills;
 #[cfg(windows)]
 mod spacemouse;
 mod aws_credentials;
@@ -501,7 +502,16 @@ pub fn run() {
 
     let app = builder
         .manage(chatgpt::ChatGptState::default())
+        .manage(assistant_skills::SkillState::default())
         .invoke_handler(tauri::generate_handler![
+            assistant_skills::assistant_skills_list,
+            assistant_skills::assistant_skill_import,
+            assistant_skills::assistant_skill_enable,
+            assistant_skills::assistant_skill_remove,
+            assistant_skills::assistant_skill_read,
+            assistant_skills::assistant_skill_attach,
+            assistant_skills::assistant_skill_run,
+            assistant_skills::assistant_skill_cancel,
             chatgpt::chatgpt_status,
             chatgpt::chatgpt_sign_in,
             chatgpt::chatgpt_sign_out,
@@ -568,6 +578,9 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            if let Err(error) = assistant_skills::clear_old_work(app.handle()) {
+                eprintln!("Could not clear previous assistant skill working files: {error}");
+            }
             create_main_window(app)?;
             // Nothing on Linux claims the OAuth callback scheme for us.
             // `tauri-bundler` writes `Exec=` into the bundled .desktop with no

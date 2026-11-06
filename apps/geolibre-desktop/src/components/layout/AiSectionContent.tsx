@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ChatGptSettings } from "../ChatGptSettings";
+import { AssistantSkillSettings } from "../AssistantSkillSettings";
 import { supportsChatGpt } from "../../lib/assistant/chatgpt-connection";
 import { useTranslation } from "react-i18next";
 import {
@@ -581,6 +582,7 @@ export function AiSectionContent({
           )}
         </div>
       )}
+      {!editingProfileId && !isCreatingProfile && <AssistantSkillSettings />}
     </div>
   );
 }

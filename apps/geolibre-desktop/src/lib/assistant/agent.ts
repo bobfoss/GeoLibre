@@ -17,6 +17,7 @@ import { resolveSystemOneEndpoint } from "./system-one";
 import { typesafeFetch } from "./typesafe-fetch";
 import { useChatGptConnection } from "./chatgpt-connection";
 import { imageContent, MAX_CONVERSATION_IMAGE_BYTES, type AssistantImage } from "./images";
+import { ConversationSkills, refreshSkills, skillCatalog, useAssistantSkills } from "./skills";
 import {
   assistantSelectionKey,
   configForProfile,
@@ -41,6 +42,7 @@ import { createHostAssistantTools, type AssistantToolDeps } from "./tools";
 /** A streamed update surfaced to the chat UI. */
 export type AssistantStreamEvent =
   | { type: "text"; text: string }
+  | { type: "image"; image: AssistantImage }
   | {
       type: "tool";
       name: string;
@@ -92,6 +94,9 @@ export class AssistantSession {
   private agent: Agent | null = null;
   private chatGptRevision = -1;
   private imageBytes = 0;
+  private readonly skills = new ConversationSkills();
+  private skillsRevision = -1;
+  private runGeneration = 0;
   /**
    * The tool registry version and activatable-plugin list the agent's tools
    * were composed from; a change to either refreshes them before the next prompt.
@@ -164,6 +169,8 @@ export class AssistantSession {
 
   /** Drop the underlying agent so the next prompt rebuilds it (and its key). */
   reset(): void {
+    this.runGeneration += 1;
+    this.skills.cancel();
     this.agent?.cancel();
     this.agent = null;
     this.lastContext = null;
@@ -173,6 +180,8 @@ export class AssistantSession {
 
   /** Cancel the in-flight model/tool run, if any. */
   cancel(): void {
+    this.runGeneration += 1;
+    this.skills.cancel();
     this.fastPathAbort?.abort();
     this.agent?.cancel();
   }
@@ -247,7 +256,11 @@ export class AssistantSession {
    */
   private composeAgentInputs(): { tools: Tool[]; systemPrompt: string } {
     const scope = this.pluginTools.scope(listAssistantToolEntries());
-    const tools = [...scope.active, ...createHostAssistantTools(this.deps)];
+    const tools = [
+      ...scope.active,
+      ...createHostAssistantTools(this.deps),
+      ...this.skills.tools(this.deps),
+    ];
     if (scope.catalog.length > 0) {
       tools.push(createLoadPluginToolsTool((names) => this.loadPluginTools(names)));
     }
@@ -264,7 +277,9 @@ export class AssistantSession {
     }
     return {
       tools,
-      systemPrompt: buildSystemPrompt(undefined, formatPluginToolCatalog(scope.catalog)),
+      systemPrompt:
+        buildSystemPrompt(undefined, formatPluginToolCatalog(scope.catalog)) +
+        skillCatalog(useAssistantSkills.getState().skills),
     };
   }
 
@@ -307,8 +322,8 @@ export class AssistantSession {
     const config = this.profile
       ? configForProfile(this.profile)
       : this.selection
-      ? configForProvider(this.selection.provider, this.selection.model)
-      : resolveProviderConfig();
+        ? configForProvider(this.selection.provider, this.selection.model)
+        : resolveProviderConfig();
 
     if (!config) {
       const pinned = this.selection?.provider ?? this.profile?.provider;
@@ -344,6 +359,14 @@ export class AssistantSession {
     if (this.streaming) throw new Error("An assistant response is already in progress.");
     this.streaming = true;
     try {
+      const startingGeneration = this.runGeneration;
+      if (!useAssistantSkills.getState().loaded) await refreshSkills();
+      if (startingGeneration !== this.runGeneration) return;
+      const skillsState = useAssistantSkills.getState();
+      if (this.skillsRevision !== skillsState.revision) {
+        this.reset();
+        this.skillsRevision = skillsState.revision;
+      }
       // Simple map commands are routed and executed without the model at all.
       // This runs before ensureAgent so it also works while no LLM provider is
       // configured — and, crucially, before any conversation state is touched,
@@ -358,9 +381,15 @@ export class AssistantSession {
           this.reset();
           this.chatGptRevision = revision;
         }
-      } else if (yield* this.streamFastPath(prompt)) return;
+      } else if (
+        !skillsState.skills.some((skill) => skill.enabled) &&
+        (yield* this.streamFastPath(prompt))
+      )
+        return;
 
+      const generation = this.runGeneration;
       const agent = await this.ensureAgent();
+      if (generation !== this.runGeneration) return;
       const imageBlocks = imageContent(images);
       const addedBytes = images.reduce((total, image) => total + image.byteLength, 0);
       if (this.imageBytes + addedBytes > MAX_CONVERSATION_IMAGE_BYTES)
@@ -370,10 +399,12 @@ export class AssistantSession {
       // Only prepend the layer context when it changed since the last message, so
       // long conversations don't re-send the full layer list on every turn.
       const context = describeLayers(useAppStore.getState().layers);
+      const skillAttachments = await this.skills.attach(images);
+      if (generation !== this.runGeneration) return;
       const message =
-        context === this.lastContext
+        (context === this.lastContext
           ? prompt
-          : `Current layers:\n${context}\n\nUser request: ${prompt}`;
+          : `Current layers:\n${context}\n\nUser request: ${prompt}`) + skillAttachments;
       this.lastContext = context;
       this.imageBytes += addedBytes;
 
@@ -396,6 +427,7 @@ export class AssistantSession {
         }
         // A tool finished — surface it (with any error) in the transcript.
         if (event.type === "afterToolCallEvent") {
+          for (const image of this.skills.takeEvidence()) yield { type: "image", image };
           yield {
             type: "tool",
             name: event.toolUse.name,

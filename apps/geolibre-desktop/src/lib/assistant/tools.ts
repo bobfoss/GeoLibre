@@ -47,7 +47,7 @@ export interface AssistantToolDeps {
    * desktop UI always provides it.
    */
   confirmCodeExecution?: (request: {
-    tool: "run_python" | "run_maplibre_js";
+    tool: "run_python" | "run_maplibre_js" | "run_skill_script";
     code: string;
   }) => Promise<boolean>;
   /**
