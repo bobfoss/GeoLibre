@@ -88,6 +88,8 @@ import { KnowledgeCardPanel } from "./KnowledgeCardPanel";
 import { KnowledgeCardConsentDialog } from "./KnowledgeCardConsentDialog";
 import { CvdPreview } from "./CvdPreview";
 import { MapGrid } from "./MapGrid";
+import { LayerRenderProgressPanel } from "./LayerRenderProgressPanel";
+import { useLayerRenderProgress } from "../../hooks/useLayerRenderProgress";
 import { PrimaryMapboxCanvas } from "./PrimaryMapboxCanvas";
 import { PrimaryArcgisCanvas } from "./PrimaryArcgisCanvas";
 import { PrimaryCesiumCanvas } from "./PrimaryCesiumCanvas";
@@ -316,6 +318,7 @@ export function DesktopShell({
     getGeometryEditTargetLayerId,
   );
   const [mapReadyGeneration, setMapReadyGeneration] = useState(0);
+  const layerRenderProgress = useLayerRenderProgress(mapControllerRef, mapReadyGeneration);
   const { clearDropMessageLater, setCrsWarning, setDropError, setDropMessage } = useDropStatus();
   useUrlLoadErrorNotices(projectUrlLoadState?.error, dataUrlLoadState?.error);
   const mapAreaRef = useRef<HTMLElement>(null);
@@ -841,6 +844,7 @@ export function DesktopShell({
                   {/* Renderer-neutral: these use the store or `MapEngine`, so they
                   stay available on every renderer. */}
                   <MapModeBanner mapControllerRef={mapControllerRef} />
+                  <LayerRenderProgressPanel progress={layerRenderProgress} />
                   <PixelTimeSeriesControl
                     mapControllerRef={mapControllerRef}
                     mapReadyGeneration={mapReadyGeneration}

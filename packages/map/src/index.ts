@@ -42,6 +42,7 @@ export {
   type MapCanvasRasterIdentifyResult,
 } from "./MapCanvas";
 export type { MapDiagnosticEvent } from "./map-diagnostic";
+export { trackLayerRendering, type LayerRenderProgress } from "./layer-render-progress";
 export {
   FEATURE_SELECTION_EVENT,
   featuresIntersectingPolygon,

@@ -1,4 +1,13 @@
 {
+  "layerRenderProgress": {
+    "title": "Layer rendering",
+    "loading": "Preparing layer…",
+    "tiles": "Loading tiles…",
+    "rendering": "Rendering…",
+    "complete": "Rendered",
+    "error": "Could not render layer",
+    "tileCount": "Loading tiles · {{loaded}} / {{total}}"
+  },
   "mcpPreview": {
     "networkConsent": {
       "previewLabel": "GeoLibre map preview",
